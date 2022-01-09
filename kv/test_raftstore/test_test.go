@@ -159,6 +159,7 @@ func confchanger(t *testing.T, cluster *Cluster, ch chan bool, done *int32) {
 // - If split is set, split region when size exceed 1024 bytes.
 func GenericTest(t *testing.T, part string, nclients int, unreliable bool, crash bool, partitions bool, maxraftlog int, confchange bool, split bool) {
 	title := "Test: "
+	log.SetLevel(log.LOG_LEVEL_DEBUG)
 	if unreliable {
 		// the network drops RPC requests and replies.
 		title = title + "unreliable net, "

@@ -14,7 +14,6 @@ import (
 	"os"
 	"runtime"
 )
-
 const (
 	Ldate         = log.Ldate
 	Llongfile     = log.Llongfile
@@ -22,6 +21,7 @@ const (
 	Lshortfile    = log.Lshortfile
 	LstdFlags     = log.LstdFlags
 	Ltime         = log.Ltime
+
 )
 
 type (
@@ -56,7 +56,10 @@ func init() {
 	SetFlags(Ldate | Ltime | Lshortfile)
 	SetHighlighting(runtime.GOOS != "windows")
 }
-
+func log2File(	format string, v ...interface{}){
+	SetLevel(LOG_LEVEL_ALL)
+	Debugf(format,v)
+}
 func GlobalLogger() *log.Logger {
 	return _log._log
 }

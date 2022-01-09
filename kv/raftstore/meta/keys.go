@@ -54,11 +54,11 @@ func makeRegionPrefix(regionID uint64, suffix byte) []byte {
 
 func makeRegionKey(regionID uint64, suffix byte, subID uint64) []byte {
 	key := make([]byte, 19)
-	key[0] = LocalPrefix
-	key[1] = RegionRaftPrefix
-	binary.BigEndian.PutUint64(key[2:], regionID)
-	key[10] = suffix
-	binary.BigEndian.PutUint64(key[11:], subID)
+	key[0] = LocalPrefix // 0
+	key[1] = RegionRaftPrefix // 1
+	binary.BigEndian.PutUint64(key[2:], regionID) // 2-9(8b)
+	key[10] = suffix // 10
+	binary.BigEndian.PutUint64(key[11:], subID) // 11-18(8b)
 	return key
 }
 

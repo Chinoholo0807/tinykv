@@ -17,6 +17,7 @@ const (
 	InitEpochConfVer uint64 = 1
 )
 
+// isRangeEmpty check weather the engine has key between startKey and endKey
 func isRangeEmpty(engine *badger.DB, startKey, endKey []byte) (bool, error) {
 	var hasData bool
 	err := engine.View(func(txn *badger.Txn) error {

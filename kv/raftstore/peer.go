@@ -83,6 +83,7 @@ type peer struct {
 
 	// Record the callback of the proposals
 	// (Used in 2B)
+	// proposal = index + term + cb ,use cb.Done() to notify finish
 	proposals []*proposal
 
 	// Index of last scheduled compacted raft log.
@@ -355,6 +356,7 @@ func (p *peer) HeartbeatScheduler(ch chan<- worker.Task) {
 		ApproximateSize: p.ApproximateSize,
 	}
 }
+
 
 func (p *peer) sendRaftMessage(msg eraftpb.Message, trans Transport) error {
 	sendMsg := new(rspb.RaftMessage)

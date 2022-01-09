@@ -10,12 +10,11 @@ import (
 type raftWorker struct {
 	pr *router
 
-	// receiver of messages should sent to raft, including:
+	// receiver of messages should send to raft, including:
 	// * raft command from `raftStorage`
 	// * raft inner messages from other peers sent by network
 	raftCh chan message.Msg
 	ctx    *GlobalContext
-
 	closeCh <-chan struct{}
 }
 
@@ -41,6 +40,7 @@ func (rw *raftWorker) run(closeCh <-chan struct{}, wg *sync.WaitGroup) {
 		case msg := <-rw.raftCh:
 			msgs = append(msgs, msg)
 		}
+		// 读取后又有msg写入rw.raftCh,将msg全部读出
 		pending := len(rw.raftCh)
 		for i := 0; i < pending; i++ {
 			msgs = append(msgs, <-rw.raftCh)
