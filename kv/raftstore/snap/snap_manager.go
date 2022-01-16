@@ -111,6 +111,8 @@ func (sm *SnapManager) ListIdleSnap() ([]SnapKeyWithSending, error) {
 			key.IsSending = true
 		}
 		numberStrs := strings.Split(name, "_")
+		// snapGenPrefix(gen)_RegionID_Term_Index.meta
+		// or snapRevPrefix(rev)_RegionID_Term_Index.meta
 		if len(numberStrs) != 4 {
 			return nil, errors.Errorf("failed to parse file %s", name)
 		}
@@ -207,6 +209,7 @@ func (sm *SnapManager) deleteOldIdleSnaps() error {
 		}
 		oldest := snaps[0]
 		snaps = snaps[1:]
+		// sort & delete the oldest snap until sm.GetTotalSnapSize() <= sm.MaxTotalSize
 		sm.DeleteSnapshot(oldest.key, oldest.snap, false)
 	}
 	return nil

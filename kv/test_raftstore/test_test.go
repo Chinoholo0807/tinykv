@@ -28,9 +28,10 @@ func runClient(t *testing.T, me int, ca chan bool, fn func(me int, t *testing.T)
 	ok = true
 }
 
-// spawn ncli clients and wait until they are all done
+// spawn(产生） ncli clients and wait until they are all done
 func SpawnClientsAndWait(t *testing.T, ch chan bool, ncli int, fn func(me int, t *testing.T)) {
 	defer func() { ch <- true }()
+	// 第cli个Client结束时，从ca[cli]中读出ok，ok = true代表fn执行正常，否则ok = false
 	ca := make([]chan bool, ncli)
 	for cli := 0; cli < ncli; cli++ {
 		ca[cli] = make(chan bool)
@@ -201,6 +202,7 @@ func GenericTest(t *testing.T, part string, nclients int, unreliable bool, crash
 
 	done_partitioner := int32(0)
 	done_confchanger := int32(0)
+
 	done_clients := int32(0)
 	ch_partitioner := make(chan bool)
 	ch_confchange := make(chan bool)
@@ -209,30 +211,36 @@ func GenericTest(t *testing.T, part string, nclients int, unreliable bool, crash
 	for i := 0; i < nclients; i++ {
 		clnts[i] = make(chan int, 1)
 	}
+	// Iterate 3 times
 	for i := 0; i < 3; i++ {
 		// log.Printf("Iteration %v\n", i)
 		atomic.StoreInt32(&done_clients, 0)
 		atomic.StoreInt32(&done_partitioner, 0)
+		// start nclients routines ,randomly read & write
 		go SpawnClientsAndWait(t, ch_clients, nclients, func(cli int, t *testing.T) {
 			j := 0
 			defer func() {
 				clnts[cli] <- j
 			}()
 			last := ""
+			// if done_clients == 1 , routine will exit
 			for atomic.LoadInt32(&done_clients) == 0 {
+
 				if (rand.Int() % 1000) < 500 {
 					key := strconv.Itoa(cli) + " " + fmt.Sprintf("%08d", j)
 					value := "x " + strconv.Itoa(cli) + " " + strconv.Itoa(j) + " y"
-					// log.Infof("%d: client new put %v,%v\n", cli, key, value)
+					//log.Infof("client(%d) new put [%v:%v]\n", cli, key, value)
 					cluster.MustPut([]byte(key), []byte(value))
 					last = NextValue(last, value)
+					//log.Infof("last = %s\n",last)
 					j++
 				} else {
 					start := strconv.Itoa(cli) + " " + fmt.Sprintf("%08d", 0)
 					end := strconv.Itoa(cli) + " " + fmt.Sprintf("%08d", j)
-					// log.Infof("%d: client new scan %v-%v\n", cli, start, end)
+					//log.Infof("client(%d) new scan %v-%v\n", cli, start, end)
 					values := cluster.Scan([]byte(start), []byte(end))
 					v := string(bytes.Join(values, []byte("")))
+					//log.Infof("v = %s\n",v)
 					if v != last {
 						log.Fatalf("get wrong value, client %v\nwant:%v\ngot: %v\n", cli, last, v)
 					}
@@ -267,6 +275,7 @@ func GenericTest(t *testing.T, part string, nclients int, unreliable bool, crash
 		}
 
 		// log.Printf("wait for clients\n")
+		// wait for clients to quit
 		<-ch_clients
 
 		if crash {

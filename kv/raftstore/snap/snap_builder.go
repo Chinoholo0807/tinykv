@@ -33,6 +33,8 @@ func (b *snapBuilder) build() error {
 		sstWriter := file.SstWriter
 
 		it := engine_util.NewCFIterator(cf, b.txn)
+		// key in [startKey, endKey) with given region
+		// sstWriter means a table(names cf) , key -- > cf_key
 		for it.Seek(startKey); it.Valid(); it.Next() {
 			item := it.Item()
 			key := item.Key()

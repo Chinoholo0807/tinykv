@@ -159,6 +159,7 @@ func (ps *PeerStorage) FirstIndex() (uint64, error) {
 func (ps *PeerStorage) Snapshot() (eraftpb.Snapshot, error) {
 	var snapshot eraftpb.Snapshot
 	if ps.snapState.StateType == snap.SnapState_Generating {
+		// 每次调用PeerStorage.Snapshot()都会尝试从Receiver中读取snapshot
 		select {
 		case s := <-ps.snapState.Receiver:
 			if s != nil {
@@ -169,6 +170,7 @@ func (ps *PeerStorage) Snapshot() (eraftpb.Snapshot, error) {
 		}
 		ps.snapState.StateType = snap.SnapState_Relax
 		if snapshot.GetMetadata() != nil {
+			// get the metadata success
 			ps.snapTriedCnt = 0
 			if ps.validateSnap(&snapshot) {
 				return snapshot, nil
@@ -358,7 +360,44 @@ func (ps *PeerStorage) ApplySnapshot(snapshot *eraftpb.Snapshot, kvWB *engine_ut
 	// and send RegionTaskApply task to region worker through ps.regionSched, also remember call ps.clearMeta
 	// and ps.clearExtraData to delete stale data
 	// Your Code Here (2C).
-	return nil, nil
+	if ps.isInitialized(){
+		// delete stale data
+		if err:=ps.clearMeta(kvWB,raftWB);err!=nil{
+			return nil ,err
+		}
+		ps.clearExtraData(snapData.Region)
+	}
+	// update peer storage state like raftState and applyState
+	metaIndex := snapshot.Metadata.Index
+	metaTerm := snapshot.Metadata.Term
+	ps.raftState.LastIndex = metaIndex
+	ps.raftState.LastTerm = metaTerm
+	ps.applyState.TruncatedState.Index = metaIndex
+	ps.applyState.AppliedIndex = metaIndex
+	ps.snapState.StateType = snap.SnapState_Applying
+	kvWB.SetMeta(meta.ApplyStateKey(snapData.Region.Id),ps.applyState)
+
+	// send RegionTaskApply task to region worker through ps.regionSched
+	ch := make(chan bool,1)
+	ps.regionSched<- &runner.RegionTaskApply{
+		RegionId:snapData.Region.Id,
+		Notifier: ch,
+		SnapMeta: snapshot.Metadata,
+		StartKey: snapData.Region.StartKey,
+		EndKey: snapData.Region.EndKey,
+	}
+	// wait for the Notifier
+	ok:=<-ch
+	if !ok{
+		return nil,errors.New(fmt.Sprintf("task RegionTaskApply is failed,fail to ApplySnapshot"))
+	}
+	result := &ApplySnapResult{
+		ps.Region(),
+		snapData.Region,
+	}
+
+	meta.WriteRegionState(kvWB,snapData.Region,rspb.PeerState_Normal)
+	return result, nil
 }
 
 // Save memory states to disk.

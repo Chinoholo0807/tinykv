@@ -99,11 +99,15 @@ func (l *RaftLog) FirstIndex() uint64{
 // LastIndex return the last index of the log entries
 func (l *RaftLog) LastIndex() uint64 {
 	// Your Code Here (2A).
+	var snapIndex uint64
+	if !IsEmptySnap(l.pendingSnapshot){
+		snapIndex = l.pendingSnapshot.Metadata.Index
+	}
 	if len(l.entries) > 0{
-		return l.entries[len(l.entries)-1].Index
+		return max(l.entries[len(l.entries)-1].Index,snapIndex)
 	}
 	le ,_ := l.storage.LastIndex()
-	return le
+	return max(le,snapIndex)
 }
 
 // We need to compact the log entries in some point of time like
@@ -111,6 +115,15 @@ func (l *RaftLog) LastIndex() uint64 {
 // grow unlimitedly in memory
 func (l *RaftLog) maybeCompact() {
 	// Your Code Here (2C).
+	first,_:=l.storage.FirstIndex()
+	if first > l.first{
+		if len(l.entries)>0{
+			entries := l.entries[l.toSliceIndex(l.first):]
+			l.entries = make([]pb.Entry,len(entries))
+			copy(l.entries,entries)
+		}
+		l.first = first
+	}
 }
 
 // unstableEntries return all the unstable entries
@@ -129,6 +142,7 @@ func (l *RaftLog) unstableEntries() []pb.Entry {
 func (l *RaftLog) nextEnts() (ents []pb.Entry) {
 	// Your Code Here (2A).
 	// Invariant: applied <= committed
+	//fmt.Printf("l.applied(%d) l.first(%d) l.committed(%d)",l.applied,l.first,l.committed)
 	if len(l.entries) > 0 {
 		return l.entries[l.applied-l.first+1:l.committed-l.first+1]
 	}
@@ -147,11 +161,13 @@ func (l *RaftLog) Term(i uint64) (uint64, error) {
 		return l.entries[i-l.first].Term , nil
 	}
 	term ,err := l.storage.Term(i)
-	if err == ErrUnavailable && IsEmptySnap(l.pendingSnapshot){
+	if err == ErrUnavailable && !IsEmptySnap(l.pendingSnapshot){
 		// find it in l.pendingSnapshot
 		if i == l.pendingSnapshot.Metadata.Index{
 			term  = l.pendingSnapshot.Metadata.Term
 			err = nil
+		} else if i < l.pendingSnapshot.Metadata.Index{
+			err = ErrCompacted
 		}
 		return term, err
 	}

@@ -196,7 +196,9 @@ func newRaft(c *Config) *Raft {
 	r.Vote = hardState.GetVote()
 	r.Term = hardState.GetTerm()
 	r.RaftLog.committed = hardState.GetCommit()
-	r.RaftLog.applied = c.Applied
+	if c.Applied>0{
+		r.RaftLog.applied = c.Applied
+	}
 	return r
 }
 // becomeFollower transform this peer's state to Follower
@@ -283,6 +285,7 @@ func (r *Raft) stepLeader(m pb.Message){
 		r.handleVoteRequest(m)
 	case pb.MessageType_MsgRequestVoteResponse:
 	case pb.MessageType_MsgSnapshot:
+		r.handleSnapshot(m)
 	case pb.MessageType_MsgHeartbeat:
 	case pb.MessageType_MsgHeartbeatResponse:
 		r.handleHeartbeatResponse(m)
@@ -303,6 +306,7 @@ func (r *Raft) stepFollower(m pb.Message){
 		r.handleVoteRequest(m)
 	case pb.MessageType_MsgRequestVoteResponse:
 	case pb.MessageType_MsgSnapshot:
+		r.handleSnapshot(m)
 	case pb.MessageType_MsgHeartbeat:
 		r.handleHeartbeat(m)
 	case pb.MessageType_MsgHeartbeatResponse:
@@ -328,6 +332,7 @@ func (r *Raft) stepCandidate(m pb.Message){
 	case pb.MessageType_MsgRequestVoteResponse:
 		r.handleVoteResponse(m)
 	case pb.MessageType_MsgSnapshot:
+		r.handleSnapshot(m)
 	case pb.MessageType_MsgHeartbeat:
 		r.handleHeartbeat(m)
 	case pb.MessageType_MsgHeartbeatResponse:
@@ -351,7 +356,14 @@ func (r *Raft) sendAppend(to uint64) bool {
 	// Your Code Here (2A).
 	pr := r.Prs[to]
 	prevIndex := pr.Next-1
-	prevLogTerm ,_:= r.RaftLog.Term(prevIndex)
+	prevLogTerm ,err:= r.RaftLog.Term(prevIndex)
+	if err != nil{
+		if err == ErrCompacted{
+			r.sendSnapshot(to)
+			return false
+		}
+		panic(err)
+	}
 	ents := r.RaftLog.sliceFrom(prevIndex+1)
 
 	entries := make([]*pb.Entry,0)
@@ -382,6 +394,21 @@ func (r *Raft) sendAppendResponse(to ,term , index uint64,reject bool){
 		LogTerm: term,
 	}
 	r.msgs = append(r.msgs,msg)
+}
+func (r *Raft) sendSnapshot(to uint64){
+	snapshot,err := r.RaftLog.storage.Snapshot()
+	if err != nil{
+		return
+	}
+	msg:=pb.Message{
+		MsgType: pb.MessageType_MsgSnapshot,
+		From: r.id,
+		To:to,
+		Term: r.Term,
+		Snapshot: &snapshot,
+	}
+	r.msgs = append(r.msgs,msg)
+	r.Prs[to].Next = snapshot.Metadata.Index +1
 }
 // sendHeartbeat sends a heartbeat RPC to the given peer.
 func (r *Raft) sendHeartbeat(to uint64) {
@@ -631,6 +658,27 @@ func (r *Raft) handleVoteResponse(m pb.Message){
 // handleSnapshot handle Snapshot RPC request
 func (r *Raft) handleSnapshot(m pb.Message) {
 	// Your Code Here (2C).
+	meta := m.Snapshot.Metadata
+	if meta.Index <= r.RaftLog.committed{
+		r.sendAppendResponse(m.From,None,r.RaftLog.committed,false)
+		return
+	}
+	// |-----committed-----meta.Index-----|
+	r.becomeFollower(max(r.Term,m.Term),m.From)
+	if len(r.RaftLog.entries)>0{
+		r.RaftLog.entries = nil
+	}
+	first:= meta.Index + 1
+	r.RaftLog.committed = meta.Index
+	r.RaftLog.applied = meta.Index
+	r.RaftLog.stabled = meta.Index
+	r.RaftLog.first = first
+	r.Prs = make(map[uint64]*Progress)
+	for _, peer := range meta.ConfState.Nodes{
+		r.Prs[peer] = &Progress{}
+	}
+	r.RaftLog.pendingSnapshot = m.Snapshot
+	r.sendAppendResponse(m.From,None,r.RaftLog.LastIndex(),false)
 }
 
 
