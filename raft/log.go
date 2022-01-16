@@ -115,10 +115,14 @@ func (l *RaftLog) LastIndex() uint64 {
 // grow unlimitedly in memory
 func (l *RaftLog) maybeCompact() {
 	// Your Code Here (2C).
+	// |-------------first--------------| storage
+	// |------l.first-------------------| memory
 	first,_:=l.storage.FirstIndex()
+	// storage's logs were compacted,push storage.first ahead
+	//log.Infof("first:%d l.first:%d len(l.entries):%d",first,l.first,len(l.entries))
 	if first > l.first{
 		if len(l.entries)>0{
-			entries := l.entries[l.toSliceIndex(l.first):]
+			entries := l.entries[l.toSliceIndex(first):]
 			l.entries = make([]pb.Entry,len(entries))
 			copy(l.entries,entries)
 		}
@@ -142,7 +146,7 @@ func (l *RaftLog) unstableEntries() []pb.Entry {
 func (l *RaftLog) nextEnts() (ents []pb.Entry) {
 	// Your Code Here (2A).
 	// Invariant: applied <= committed
-	//fmt.Printf("l.applied(%d) l.first(%d) l.committed(%d)",l.applied,l.first,l.committed)
+	//log.Infof("l.applied(%d) l.first(%d) l.committed(%d)",l.applied,l.first,l.committed)
 	if len(l.entries) > 0 {
 		return l.entries[l.applied-l.first+1:l.committed-l.first+1]
 	}

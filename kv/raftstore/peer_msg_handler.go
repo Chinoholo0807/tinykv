@@ -5,6 +5,7 @@ import (
 	"github.com/pingcap-incubator/tinykv/kv/raftstore/meta"
 	"github.com/pingcap-incubator/tinykv/kv/util/engine_util"
 	"github.com/pingcap-incubator/tinykv/proto/pkg/eraftpb"
+	"reflect"
 	"time"
 
 	"github.com/Connor1996/badger/y"
@@ -59,13 +60,23 @@ func (d *peerMsgHandler) HandleRaftReady() {
 	// Your Code Here (2B).
 	if d.RaftGroup.HasReady(){
 		rd := d.RaftGroup.Ready()
+		//log.Infof("get ready form RawNode:%+v",rd)
 		// save to storage
 		snapResult ,err := d.peerStorage.SaveReadyState(&rd)
 		if err != nil {
-			log.Panic(err)
+			panic(err)
 		}
 		if snapResult != nil{
-			// TODO Snap
+			if!reflect.DeepEqual(snapResult.Region,snapResult.PrevRegion){
+				r := snapResult.Region
+				d.peerStorage.SetRegion(r)
+				storeMeta := d.ctx.storeMeta
+				storeMeta.Lock()
+				storeMeta.regions[r.Id] = r
+				storeMeta.regionRanges.Delete(&regionItem{snapResult.PrevRegion})
+				storeMeta.regionRanges.ReplaceOrInsert(&regionItem{snapResult.Region})
+				storeMeta.Unlock()
+			}
 		}
 		// sending raft messages to other peers through the network.
 		d.Send(d.ctx.trans,rd.Messages)
@@ -80,6 +91,10 @@ func (d *peerMsgHandler) HandleRaftReady() {
 				}
 			}
 			// update apply state
+
+			//if  d.peerStorage.applyState.AppliedIndex > rd.CommittedEntries[len(rd.CommittedEntries)-1].Index{
+				//log.Infof("prev appliedIdx:%d,rd.lastCommittedEntries.Index:%d",d.peerStorage.applyState.AppliedIndex,rd.CommittedEntries[len(rd.CommittedEntries)-1].Index)
+			//}
 			d.peerStorage.applyState.AppliedIndex = rd.CommittedEntries[len(rd.CommittedEntries)-1].Index
 			kvWB.SetMeta(meta.ApplyStateKey(d.regionId),d.peerStorage.applyState)
 			// write back to DB
@@ -105,14 +120,33 @@ func (d *peerMsgHandler) processEntry(entry *eraftpb.Entry,wb * engine_util.Writ
 		return d.processRaftRequest(msg,wb,entry)
 	}
 	if msg.AdminRequest!=nil{
-		d.processRaftAdminRequest()
+		d.processRaftAdminRequest(msg,wb,entry)
 		return wb
 	}
 	return wb
 }
 // process raft_cmdpb.RaftCmdRequest.AdminRequest from Ready
-func (d *peerMsgHandler) processRaftAdminRequest(){
-
+func (d *peerMsgHandler) processRaftAdminRequest(request *raft_cmdpb.RaftCmdRequest,wb *engine_util.WriteBatch,entry *eraftpb.Entry){
+	req := request.AdminRequest
+	switch req.CmdType {
+	case raft_cmdpb.AdminCmdType_CompactLog:
+		compactReq:=req.CompactLog
+		applySt := d.peerStorage.applyState
+		//log.Infof("processRaftAdminRequest:AdminCmdType_CompactLog " +
+		//	"compactIdx:%d compactTerm:%d applySt.AppliedIndex:%d",compactReq.CompactIndex,
+		//	compactReq.CompactTerm,applySt.AppliedIndex)
+		// |---------lastTruncate------compacted--------| -->
+		// |---------------------------lastTruncate-----|
+		if compactReq.CompactIndex >= applySt.TruncatedState.Index{
+			applySt.TruncatedState.Index = compactReq.CompactIndex
+			applySt.TruncatedState.Term = compactReq.CompactTerm
+			wb.SetMeta(meta.ApplyStateKey(d.regionId),applySt)
+			d.ScheduleCompactLog(compactReq.CompactIndex)
+		}
+	case raft_cmdpb.AdminCmdType_TransferLeader:
+	case raft_cmdpb.AdminCmdType_ChangePeer:
+	case raft_cmdpb.AdminCmdType_Split:
+	}
 }
 // process raft_cmdpb.RaftCmdRequest.Requests from Ready
 func (d *peerMsgHandler) processRaftRequest(msg *raft_cmdpb.RaftCmdRequest,wb *engine_util.WriteBatch,entry * eraftpb.Entry) *engine_util.WriteBatch{
@@ -300,7 +334,19 @@ func (d * peerMsgHandler) proposeRaftRequest(msg *raft_cmdpb.RaftCmdRequest,cb *
 }
 // propose raft_cmdpb.RaftCmdRequest.AdminRequest from raftCh
 func (d * peerMsgHandler) proposeRaftAdminRequest(msg *raft_cmdpb.RaftCmdRequest,cb * message.Callback){
-	return
+	req := msg.AdminRequest
+	switch req.CmdType {
+	case raft_cmdpb.AdminCmdType_CompactLog:
+		data,err := msg.Marshal()
+		if err != nil{
+			panic(err)
+		}
+		// append log
+		d.RaftGroup.Propose(data)
+	case raft_cmdpb.AdminCmdType_Split:
+	case raft_cmdpb.AdminCmdType_ChangePeer:
+	case raft_cmdpb.AdminCmdType_TransferLeader:
+	}
 }
 func (d *peerMsgHandler) onTick() {
 	if d.stopped {
@@ -336,6 +382,7 @@ func (d *peerMsgHandler) onRaftBaseTick() {
 	d.ticker.schedule(PeerTickRaft)
 }
 
+// ScheduleCompactLog send a task to gc log in [lastCompactedIdx, truncatedIndex] with given region
 func (d *peerMsgHandler) ScheduleCompactLog(truncatedIndex uint64) {
 	raftLogGCTask := &runner.RaftLogGCTask{
 		RaftEngine: d.ctx.engine.Raft,
@@ -343,6 +390,7 @@ func (d *peerMsgHandler) ScheduleCompactLog(truncatedIndex uint64) {
 		StartIdx:   d.LastCompactedIdx,
 		EndIdx:     truncatedIndex + 1,
 	}
+	//log.Infof("raftLogGCTask:%+v",*raftLogGCTask)
 	d.LastCompactedIdx = raftLogGCTask.EndIdx
 	d.ctx.raftLogGCTaskSender <- raftLogGCTask
 }
