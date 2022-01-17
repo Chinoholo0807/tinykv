@@ -116,7 +116,7 @@ func (l *RaftLog) LastIndex() uint64 {
 func (l *RaftLog) maybeCompact() {
 	// Your Code Here (2C).
 	// |-------------first--------------| storage
-	// |------l.first-------------------| memory
+	// |l.first--------|----------------| memory
 	first,_:=l.storage.FirstIndex()
 	// storage's logs were compacted,push storage.first ahead
 	//log.Infof("first:%d l.first:%d len(l.entries):%d",first,l.first,len(l.entries))

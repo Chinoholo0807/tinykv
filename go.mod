@@ -1,12 +1,13 @@
 module github.com/pingcap-incubator/tinykv
 
 require (
+	code.byted.org/middleware/hertztool/v2 v2.2.1 // indirect
 	github.com/BurntSushi/toml v0.3.1
 	github.com/Connor1996/badger v1.5.1-0.20210202034640-5ff470f827f8
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 	github.com/docker/go-units v0.4.0
 	github.com/gogo/protobuf v1.3.1
-	github.com/golang/protobuf v1.4.3
+	github.com/golang/protobuf v1.5.2
 	github.com/google/btree v1.0.0
 	github.com/juju/errors v0.0.0-20181118221551-089d3ea4e4d5
 	github.com/juju/testing v0.0.0-20200510222523-6c8c298c77a0 // indirect
@@ -27,7 +28,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20191023171146-3cf2f69b5738
 	go.uber.org/zap v1.14.0
-	golang.org/x/net v0.0.0-20200822124328-c89045814202
+	golang.org/x/net v0.0.0-20201021035429-f5854403a974
 	google.golang.org/grpc v1.43.0
 	google.golang.org/grpc/examples v0.0.0-20211214234454-7c8a9321b9de // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0

@@ -46,6 +46,7 @@ func (b *snapBuilder) build() error {
 				return err
 			}
 			cfKey := engine_util.KeyWithCF(cf, key)
+			// Add Key-Value pair
 			if err := sstWriter.Add(cfKey, y.ValueStruct{
 				Value: value,
 			}); err != nil {

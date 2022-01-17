@@ -239,6 +239,7 @@ func (sm *SnapManager) GetSnapshotForApplying(snapKey SnapKey) (Snapshot, error)
 	return snap, nil
 }
 
+// Register 对于给定的key(RegionID + Term + Index) 注册SnapEntry事件(Gen、Apply、Recv、Send)
 func (sm *SnapManager) Register(key SnapKey, entry SnapEntry) {
 	log.Debugf("register key:%s, entry:%d", key, entry)
 	sm.registryLock.Lock()
