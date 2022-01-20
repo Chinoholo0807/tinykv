@@ -64,7 +64,7 @@ func (r *SchedulerTaskHandler) Handle(t worker.Task) {
 func (r *SchedulerTaskHandler) Start() {
 	r.SchedulerClient.SetRegionHeartbeatResponseHandler(r.storeID, r.onRegionHeartbeatResponse)
 }
-
+// handle ChangePeer() or TransferLeader()
 func (r *SchedulerTaskHandler) onRegionHeartbeatResponse(resp *schedulerpb.RegionHeartbeatResponse) {
 	if changePeer := resp.GetChangePeer(); changePeer != nil {
 		r.sendAdminRequest(resp.RegionId, resp.RegionEpoch, resp.TargetPeer, &raft_cmdpb.AdminRequest{
@@ -85,6 +85,7 @@ func (r *SchedulerTaskHandler) onRegionHeartbeatResponse(resp *schedulerpb.Regio
 }
 
 func (r *SchedulerTaskHandler) onAskSplit(t *SchedulerAskSplitTask) {
+	// ask the schedulerServer to get new RegionId & new PeersID
 	resp, err := r.SchedulerClient.AskSplit(context.TODO(), t.Region)
 	if err != nil {
 		log.Error(err)
@@ -99,6 +100,7 @@ func (r *SchedulerTaskHandler) onAskSplit(t *SchedulerAskSplitTask) {
 			NewPeerIds:  resp.NewPeerIds,
 		},
 	}
+	// send to the old region which will be split into 2 region( t.Region.Id,resp.NewRegionId)
 	r.sendAdminRequest(t.Region.GetId(), t.Region.GetRegionEpoch(), t.Peer, aq, t.Callback)
 }
 

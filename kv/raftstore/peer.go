@@ -49,6 +49,7 @@ func replicatePeer(storeID uint64, cfg *config.Config, sched chan<- worker.Task,
 	engines *engine_util.Engines, regionID uint64, metaPeer *metapb.Peer) (*peer, error) {
 	// We will remove tombstone key when apply snapshot
 	log.Infof("[region %v] replicates peer with ID %d", regionID, metaPeer.GetId())
+	// noted that region's StartKey = EndKey = ""！！！
 	region := &metapb.Region{
 		Id:          regionID,
 		RegionEpoch: &metapb.RegionEpoch{},

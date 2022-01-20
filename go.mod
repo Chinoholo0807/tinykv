@@ -1,9 +1,11 @@
 module github.com/pingcap-incubator/tinykv
 
 require (
+	code.byted.org/gopkg/logs v1.1.7
 	code.byted.org/middleware/hertztool/v2 v2.2.1 // indirect
 	github.com/BurntSushi/toml v0.3.1
 	github.com/Connor1996/badger v1.5.1-0.20210202034640-5ff470f827f8
+	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 	github.com/docker/go-units v0.4.0
 	github.com/gogo/protobuf v1.3.1
@@ -23,12 +25,14 @@ require (
 	github.com/pingcap/tipb v0.0.0-20200212061130-c4d518eb1d60
 	github.com/pkg/errors v0.8.1
 	github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0 // indirect
-	github.com/shirou/gopsutil v2.19.10+incompatible
+	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/sirupsen/logrus v1.2.0
 	github.com/stretchr/testify v1.7.0
+	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20191023171146-3cf2f69b5738
 	go.uber.org/zap v1.14.0
 	golang.org/x/net v0.0.0-20201021035429-f5854403a974
+	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9 // indirect
 	google.golang.org/grpc v1.43.0
 	google.golang.org/grpc/examples v0.0.0-20211214234454-7c8a9321b9de // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0

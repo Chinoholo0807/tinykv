@@ -2,6 +2,7 @@ package raftstore
 
 import (
 	"bytes"
+	"code.byted.org/gopkg/logs"
 	"sync"
 	"time"
 
@@ -28,7 +29,8 @@ type regionItem struct {
 	region *metapb.Region
 }
 
-// Less returns true if the region start key is less than the other.
+// Less returns true if the region start key is less than the other
+// region r Less than region other when r.StartKey < other.StartKey
 func (r *regionItem) Less(other btree.Item) bool {
 	left := r.region.GetStartKey()
 	right := other.(*regionItem).region.GetStartKey()
@@ -67,7 +69,8 @@ func (m *storeMeta) getOverlapRegions(region *metapb.Region) []*metapb.Region {
 		result = i.(*regionItem)
 		return false
 	})
-
+	//      .............region.startKey.........
+	//	result.startKey...................result.endKey..........
 	if result == nil || engine_util.ExceedEndKey(region.GetStartKey(), result.region.GetEndKey()) {
 		result = item
 	}
@@ -75,6 +78,8 @@ func (m *storeMeta) getOverlapRegions(region *metapb.Region) []*metapb.Region {
 	var overlaps []*metapb.Region
 	m.regionRanges.AscendGreaterOrEqual(result, func(i btree.Item) bool {
 		over := i.(*regionItem)
+		//      region.startKey ....................region.endKey
+		//                       region.startKey
 		if engine_util.ExceedEndKey(over.region.GetStartKey(), region.GetEndKey()) {
 			return false
 		}
@@ -284,17 +289,23 @@ func (bs *Raftstore) startWorkers(peers []*peer) {
 }
 
 func (bs *Raftstore) shutDown() {
+	logs.Infof("close bs.closeCh")
 	close(bs.closeCh)
 	bs.wg.Wait()
+	logs.Infof("stop the tickDriver")
 	bs.tickDriver.stop()
 	if bs.workers == nil {
 		return
 	}
 	workers := bs.workers
 	bs.workers = nil
+	//logs.Infof("stop splitCheckWorker")
 	workers.splitCheckWorker.Stop()
+	//logs.Infof("stop regionWorker")
 	workers.regionWorker.Stop()
+	//logs.Infof("stop raftLogGCWorker")
 	workers.raftLogGCWorker.Stop()
+	//logs.Infof("stop schedulerWorker")
 	workers.schedulerWorker.Stop()
 	workers.wg.Wait()
 }

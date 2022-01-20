@@ -54,15 +54,22 @@ func newStoreWorker(ctx *GlobalContext, state *storeState) *storeWorker {
 }
 
 func (sw *storeWorker) run(closeCh <-chan struct{}, wg *sync.WaitGroup) {
-	defer wg.Done()
+	//log.SetLevel(log.LOG_LEVEL_DEBUG)
+	defer func(){
+		//log.Infof("storeWorker stop")
+		wg.Done()
+	}()
 	for {
+		//log.Infof("storeWorker wait for ch")
 		var msg message.Msg
 		select {
 		case <-closeCh:
 			return
 		case msg = <-sw.receiver:
 		}
+		//log.Infof("storeWorker handle Msg type(%d) region(%d)",msg.Type,msg.RegionID)
 		sw.handleMsg(msg)
+
 	}
 }
 
@@ -94,9 +101,9 @@ func (d *storeWorker) start(store *metapb.Store) {
 	d.ticker.scheduleStore(StoreTickSnapGC)
 }
 
-/// Checks if the message is targeting a stale peer.
-///
-/// Returns true means the message can be dropped silently.
+// Checks if the message is targeting a stale peer.
+//
+// Returns true means the message can be dropped silently.
 func (d *storeWorker) checkMsg(msg *rspb.RaftMessage) (bool, error) {
 	regionID := msg.GetRegionId()
 	fromEpoch := msg.GetRegionEpoch()
@@ -106,6 +113,7 @@ func (d *storeWorker) checkMsg(msg *rspb.RaftMessage) (bool, error) {
 
 	// Check if the target is tombstone,
 	stateKey := meta.RegionStateKey(regionID)
+	// get region metadata
 	localState := new(rspb.RegionLocalState)
 	err := engine_util.GetMeta(d.ctx.engine.Kv, stateKey, localState)
 	if err != nil {
@@ -154,6 +162,7 @@ func (d *storeWorker) onRaftMessage(msg *rspb.RaftMessage) error {
 	if err := d.ctx.router.send(regionID, message.Msg{Type: message.MsgTypeRaftMessage, Data: msg}); err == nil {
 		return nil
 	}
+	// send RaftMessage to given peer failed(ErrPeerNotFound), storeWorker handle the msg
 	log.Debugf("handle raft message. from_peer:%d, to_peer:%d, store:%d, region:%d, msg:%+v",
 		msg.FromPeer.Id, msg.ToPeer.Id, d.storeState.id, regionID, msg.Message)
 	if msg.ToPeer.StoreId != d.ctx.store.Id {
@@ -170,6 +179,7 @@ func (d *storeWorker) onRaftMessage(msg *rspb.RaftMessage) error {
 		// Target tombstone peer doesn't exist, so ignore it.
 		return nil
 	}
+	// ok = true means we can drop this msg silently
 	ok, err := d.checkMsg(msg)
 	if err != nil {
 		return err
@@ -184,6 +194,7 @@ func (d *storeWorker) onRaftMessage(msg *rspb.RaftMessage) error {
 	if !created {
 		return nil
 	}
+	// create the peer , then send again
 	_ = d.ctx.router.send(regionID, message.Msg{Type: message.MsgTypeRaftMessage, Data: msg})
 	return nil
 }
@@ -198,9 +209,11 @@ func (d *storeWorker) maybeCreatePeer(regionID uint64, msg *rspb.RaftMessage) (b
 	meta := d.ctx.storeMeta
 	meta.Lock()
 	defer meta.Unlock()
+	// regionID exist
 	if _, ok := meta.regions[regionID]; ok {
 		return true, nil
 	}
+	//
 	if !util.IsInitialMsg(msg.Message) {
 		log.Debugf("target peer %s doesn't exist", msg.ToPeer)
 		return false, nil
@@ -216,7 +229,8 @@ func (d *storeWorker) maybeCreatePeer(regionID uint64, msg *rspb.RaftMessage) (b
 		}
 		return false, nil
 	}
-
+	// no region overlap the given msg
+	// create the new peer with given regionID & peerID
 	peer, err := replicatePeer(
 		d.ctx.store.Id, d.ctx.cfg, d.ctx.regionTaskSender, d.ctx.engine, regionID, msg.ToPeer)
 	if err != nil {

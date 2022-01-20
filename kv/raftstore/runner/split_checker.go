@@ -44,7 +44,9 @@ func (r *splitCheckHandler) Handle(t worker.Task) {
 	regionId := region.Id
 	log.Debugf("executing split check worker.Task: [regionId: %d, startKey: %s, endKey: %s]", regionId,
 		hex.EncodeToString(region.StartKey), hex.EncodeToString(region.EndKey))
+	// check given region whether need to be splited
 	key := r.splitCheck(regionId, region.StartKey, region.EndKey)
+	// need to split
 	if key != nil {
 		_, userKey, err := codec.DecodeBytes(key)
 		if err == nil {
@@ -88,6 +90,7 @@ func (r *splitCheckHandler) splitCheck(regionID uint64, startKey, endKey []byte)
 			})
 			break
 		}
+
 		if r.checker.onKv(key, item) {
 			break
 		}
@@ -114,7 +117,9 @@ func (checker *sizeSplitChecker) reset() {
 	checker.currentSize = 0
 	checker.splitKey = nil
 }
-
+// update check.currenSize with given key & item
+// set splitKey when check.currentSize > check.splitSize
+// return true if check.currentSize > check.maxSize
 func (checker *sizeSplitChecker) onKv(key []byte, item engine_util.DBItem) bool {
 	valueSize := uint64(item.ValueSize())
 	size := uint64(len(key)) + valueSize

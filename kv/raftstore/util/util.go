@@ -20,7 +20,7 @@ const InvalidID uint64 = 0
 // There could be two cases:
 // 1. Target peer already exists but has not established communication with leader yet
 // 2. Target peer is added newly due to member change or region split, but it's not
-//    created yet
+// created yet
 // For both cases the region start key and end key are attached in RequestVote and
 // Heartbeat message for the store of that peer to check whether to create a new peer
 // when receiving these messages, or just to wait for a pending region split to perform

@@ -171,7 +171,7 @@ func (c *client) updateLeader() (*schedulerpb.GetMembersResponse, error) {
 				continue
 			}
 		}
-
+		// get the members' info success
 		c.updateURLs(members.GetMembers(), members.GetLeader())
 		return members, c.switchLeader(members.GetLeader().GetClientUrls())
 	}
@@ -186,6 +186,7 @@ func (c *client) updateURLs(members []*schedulerpb.Member, leader *schedulerpb.M
 		}
 		urls = append(urls, m.GetClientUrls()...)
 	}
+	// urls[-1]为leader的url
 	c.urls = append(urls, leader.GetClientUrls()...)
 }
 
@@ -216,9 +217,11 @@ func (c *client) getMembers(ctx context.Context, url string) (*schedulerpb.GetMe
 	if err != nil {
 		return nil, err
 	}
+	// 和SchedulerServer通信的SchedulerClient
 	return schedulerpb.NewSchedulerClient(cc).GetMembers(ctx, new(schedulerpb.GetMembersRequest))
 }
 
+// 和addr通过Dial建立连接
 func (c *client) getOrCreateConn(addr string) (*grpc.ClientConn, error) {
 	c.connMu.RLock()
 	conn, ok := c.connMu.clientConns[addr]

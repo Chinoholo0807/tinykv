@@ -148,6 +148,9 @@ func (l *RaftLog) nextEnts() (ents []pb.Entry) {
 	// Invariant: applied <= committed
 	//log.Infof("l.applied(%d) l.first(%d) l.committed(%d)",l.applied,l.first,l.committed)
 	if len(l.entries) > 0 {
+		if l.applied < l.first-1 || l.committed < l.first-1 || l.committed<l.applied{
+			panic(fmt.Sprintf("conflict l.first(%d) l.applied(%d) l.committed(%d)",l.first,l.applied,l.committed))
+		}
 		return l.entries[l.applied-l.first+1:l.committed-l.first+1]
 	}
 	return nil

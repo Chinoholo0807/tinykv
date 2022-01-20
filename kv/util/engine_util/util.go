@@ -2,6 +2,8 @@ package engine_util
 
 import (
 	"bytes"
+	"fmt"
+	"github.com/pingcap-incubator/tinykv/proto/pkg/metapb"
 
 	"github.com/Connor1996/badger"
 	"github.com/golang/protobuf/proto"
@@ -107,4 +109,12 @@ func ExceedEndKey(current, endKey []byte) bool {
 		return false
 	}
 	return bytes.Compare(current, endKey) >= 0
+}
+
+func PeersString(peers []*metapb.Peer) (s string){
+	s += fmt.Sprintf("peerCnt(%d):",len(peers))
+	for _,peer:=range peers{
+		s += fmt.Sprintf("{peerId(%d) storeId(%d)}",peer.Id,peer.StoreId)
+	}
+	return s
 }

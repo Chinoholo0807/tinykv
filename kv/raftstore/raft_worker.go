@@ -1,6 +1,7 @@
 package raftstore
 
 import (
+	"code.byted.org/gopkg/logs"
 	"sync"
 
 	"github.com/pingcap-incubator/tinykv/kv/raftstore/message"
@@ -30,7 +31,10 @@ func newRaftWorker(ctx *GlobalContext, pm *router) *raftWorker {
 // On each loop, raft commands are batched by channel buffer.
 // After commands are handled, we collect apply messages by peers, make a applyBatch, send it to apply channel.
 func (rw *raftWorker) run(closeCh <-chan struct{}, wg *sync.WaitGroup) {
-	defer wg.Done()
+	defer func(){
+		logs.Infof("raftWorker stop")
+		wg.Done()
+	}()
 	var msgs []message.Msg
 	for {
 		msgs = msgs[:0]
