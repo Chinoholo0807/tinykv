@@ -301,13 +301,16 @@ func (s *heartbeatServer) Send(m *schedulerpb.RegionHeartbeatResponse) error {
 		return io.EOF
 	}
 	done := make(chan error, 1)
-	go func() { done <- s.stream.Send(m) }()
+	go func() {
+		done <- s.stream.Send(m)
+	}()
 	select {
 	case err := <-done:
 		if err != nil {
 			atomic.StoreInt32(&s.closed, 1)
 		}
 		return errors.WithStack(err)
+		// send timeout
 	case <-time.After(regionHeartbeatSendTimeout):
 		atomic.StoreInt32(&s.closed, 1)
 		return errors.WithStack(errSendRegionHeartbeatTimeout)

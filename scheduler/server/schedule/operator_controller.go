@@ -103,7 +103,7 @@ func (oc *OperatorController) Dispatch(region *core.RegionInfo, source string) {
 
 				return
 			}
-
+			// send the schedule OpStep to specific region & return
 			oc.SendScheduleCommand(region, step, source)
 			return
 		}

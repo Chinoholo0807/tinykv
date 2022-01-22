@@ -37,10 +37,10 @@ func HealthRegionAllowPending() RegionOption {
 // RegionCreateOption used to create region.
 type RegionCreateOption func(region *RegionInfo)
 
-// WithPendingPeers sets the pending peers for the region.
-func WithPendingPeers(pengdingPeers []*metapb.Peer) RegionCreateOption {
+// WithPendingPeers [sets] the pending peers for the region.
+func WithPendingPeers(pendingPeers []*metapb.Peer) RegionCreateOption {
 	return func(region *RegionInfo) {
-		region.pendingPeers = pengdingPeers
+		region.pendingPeers = pendingPeers
 	}
 }
 
@@ -51,21 +51,21 @@ func WithLeader(leader *metapb.Peer) RegionCreateOption {
 	}
 }
 
-// WithLearners adds learner to the region
+// WithLearners [adds] learner to the region
 func WithLearners(learner []*metapb.Peer) RegionCreateOption {
 	return func(region *RegionInfo) {
 		region.learners = append(region.learners, learner...)
 	}
 }
 
-// WithStartKey sets the start key for the region.
+// WithStartKey [sets] the start key for the region.
 func WithStartKey(key []byte) RegionCreateOption {
 	return func(region *RegionInfo) {
 		region.meta.StartKey = key
 	}
 }
 
-// WithEndKey sets the end key for the region.
+// WithEndKey [sets] the end key for the region.
 func WithEndKey(key []byte) RegionCreateOption {
 	return func(region *RegionInfo) {
 		region.meta.EndKey = key
@@ -112,14 +112,14 @@ func SetApproximateSize(v int64) RegionCreateOption {
 	}
 }
 
-// SetPeers sets the peers for the region.
+// SetPeers [sets] the peers for the region.
 func SetPeers(peers []*metapb.Peer) RegionCreateOption {
 	return func(region *RegionInfo) {
 		region.meta.Peers = peers
 	}
 }
 
-// WithAddPeer adds a peer for the region.
+// WithAddPeer [adds] a peer for the region.
 func WithAddPeer(peer *metapb.Peer) RegionCreateOption {
 	return func(region *RegionInfo) {
 		region.meta.Peers = append(region.meta.Peers, peer)

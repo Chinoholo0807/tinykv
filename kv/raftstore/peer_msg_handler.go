@@ -293,6 +293,9 @@ func (d *peerMsgHandler) processRaftAdminRequest(request *raft_cmdpb.RaftCmdRequ
 		// update region's meta info
 		meta.WriteRegionState(wb,region,rspb.PeerState_Normal)
 		meta.WriteRegionState(wb,newRegion,rspb.PeerState_Normal)
+		d.SizeDiffHint = 0
+		// reset
+		d.ApproximateSize = new(uint64)
 		// create the new peer & register it
 		peer,err := createPeer(d.storeID(),d.ctx.cfg,d.ctx.regionTaskSender,d.ctx.engine,newRegion)
 		if err != nil{

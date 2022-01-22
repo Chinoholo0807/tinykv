@@ -279,7 +279,38 @@ func (c *RaftCluster) handleStoreHeartbeat(stats *schedulerpb.StoreStats) error 
 // processRegionHeartbeat updates the region information.
 func (c *RaftCluster) processRegionHeartbeat(region *core.RegionInfo) error {
 	// Your Code Here (3C).
-
+	// update its local region information first.
+	// So for one Region, either of the two nodes might say that it's the leader,
+	// which means the Scheduler cannot trust them both.
+	// The node with a larger configuration change version must have newer information.
+	epoch := region.GetRegionEpoch()
+	if epoch == nil {
+		return errors.Errorf("processRegionHeartBeat with region's epoch == nil")
+	}
+	oldRegion := c.GetRegion(region.GetID())
+	// there do not  exist region with the same id in local storage
+	if oldRegion == nil{
+		// scan all regions that overlap with it.
+		// The heartbeats’ conf_ver and version should be greater or equal than all of them, or the region is stale.
+		overlapRegions:= c.ScanRegions(region.GetStartKey(),region.GetEndKey(),-1)
+		for _, oldRegion := range overlapRegions{
+			oldEpoch:=oldRegion.GetRegionEpoch()
+			if epoch.ConfVer < oldEpoch.ConfVer || epoch.Version < oldEpoch.Version{
+				return errors.Errorf("processRegionHeartBeat with region's epoch is stale")
+			}
+		}
+	//  there is a region with the same id in local storage
+	} else{
+		oldEpoch:=oldRegion.GetRegionEpoch()
+		if epoch.ConfVer < oldEpoch.ConfVer || epoch.Version < oldEpoch.Version{
+			return errors.Errorf("processRegionHeartBeat with region's epoch is stale")
+		}
+	}
+	c.putRegion(region)
+	for storeId :=range  region.GetStoreIds(){
+		// update the store info
+		c.updateStoreStatusLocked(storeId)
+	}
 	return nil
 }
 

@@ -283,6 +283,7 @@ func (p *peer) CollectPendingPeers() []*metapb.Peer {
 		if id == p.Meta.GetId() {
 			continue
 		}
+		// which means this peer need snapshot & scheduler
 		if progress.Match < truncatedIdx {
 			if peer := p.getPeerFromCache(id); peer != nil {
 				pendingPeers = append(pendingPeers, peer)

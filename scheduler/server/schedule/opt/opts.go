@@ -40,7 +40,6 @@ type Cluster interface {
 
 	Options
 
-	// TODO: it should be removed. Schedulers don't need to know anything
-	// about peers.
+	// TODO: it should be removed. Schedulers don't need to know anything about peers.
 	AllocPeer(storeID uint64) (*metapb.Peer, error)
 }

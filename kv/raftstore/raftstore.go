@@ -2,7 +2,6 @@ package raftstore
 
 import (
 	"bytes"
-	"code.byted.org/gopkg/logs"
 	"sync"
 	"time"
 
@@ -289,10 +288,10 @@ func (bs *Raftstore) startWorkers(peers []*peer) {
 }
 
 func (bs *Raftstore) shutDown() {
-	logs.Infof("close bs.closeCh")
+	//logs.Infof("close bs.closeCh")
 	close(bs.closeCh)
 	bs.wg.Wait()
-	logs.Infof("stop the tickDriver")
+	//logs.Infof("stop the tickDriver")
 	bs.tickDriver.stop()
 	if bs.workers == nil {
 		return

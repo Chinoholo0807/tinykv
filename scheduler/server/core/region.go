@@ -78,7 +78,7 @@ func RegionFromHeartbeat(heartbeat *schedulerpb.RegionHeartbeatRequest) *RegionI
 		pendingPeers:    heartbeat.GetPendingPeers(),
 		approximateSize: int64(regionSize),
 	}
-
+	// set voters
 	classifyVoterAndLearner(region)
 	return region
 }
@@ -184,7 +184,7 @@ func (r *RegionInfo) GetStoreLearner(storeID uint64) *metapb.Peer {
 	return nil
 }
 
-// GetStoreIds returns a map indicate the region distributed.
+// GetStoreIds returns a map indicate the region distributed. (build a set by map)
 func (r *RegionInfo) GetStoreIds() map[uint64]struct{} {
 	peers := r.meta.GetPeers()
 	stores := make(map[uint64]struct{}, len(peers))

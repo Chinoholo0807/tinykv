@@ -90,6 +90,7 @@ func (ap AddPeer) IsFinish(region *core.RegionInfo) bool {
 			log.Warn("obtain unexpected peer", zap.String("expect", ap.String()), zap.Uint64("obtain-voter", p.GetId()))
 			return false
 		}
+		// assert the peer is not pending
 		return region.GetPendingVoter(p.GetId()) == nil
 	}
 	return false
@@ -303,7 +304,13 @@ func CreateAddPeerOperator(desc string, region *core.RegionInfo, peerID uint64, 
 	brief := fmt.Sprintf("add peer: store %v", toStoreID)
 	return NewOperator(desc, brief, region.GetID(), region.GetRegionEpoch(), kind|OpRegion, steps...)
 }
-
+// CreateAddPeerSteps creates an OpStep list that add a new peer.
+func CreateAddPeerSteps(newStore uint64, peerID uint64) []OpStep {
+	st := []OpStep{
+		AddPeer{ToStore: newStore, PeerID: peerID},
+	}
+	return st
+}
 // CreateRemovePeerOperator creates an operator that removes a peer from region.
 func CreateRemovePeerOperator(desc string, cluster Cluster, kind OpKind, region *core.RegionInfo, storeID uint64) (*Operator, error) {
 	removeKind, steps, err := removePeerSteps(cluster, region, storeID, getRegionFollowerIDs(region))
@@ -314,13 +321,7 @@ func CreateRemovePeerOperator(desc string, cluster Cluster, kind OpKind, region 
 	return NewOperator(desc, brief, region.GetID(), region.GetRegionEpoch(), removeKind|kind, steps...), nil
 }
 
-// CreateAddPeerSteps creates an OpStep list that add a new peer.
-func CreateAddPeerSteps(newStore uint64, peerID uint64) []OpStep {
-	st := []OpStep{
-		AddPeer{ToStore: newStore, PeerID: peerID},
-	}
-	return st
-}
+
 
 // CreateTransferLeaderOperator creates an operator that transfers the leader from a source store to a target store.
 func CreateTransferLeaderOperator(desc string, region *core.RegionInfo, sourceStoreID uint64, targetStoreID uint64, kind OpKind) *Operator {
@@ -364,6 +365,50 @@ func CreateMovePeerOperator(desc string, cluster Cluster, region *core.RegionInf
 	brief := fmt.Sprintf("mv peer: store %v to %v", oldStore, newStore)
 	return NewOperator(desc, brief, region.GetID(), region.GetRegionEpoch(), removeKind|kind|OpRegion, steps...), nil
 }
+// removePeerSteps returns the steps to safely remove a peer. It prevents removing leader by transfer its leadership first.
+func removePeerSteps(cluster Cluster, region *core.RegionInfo, storeID uint64, followerIDs []uint64) (kind OpKind, steps []OpStep, err error) {
+	// if the store with storeID is leader ,transfer to other store first
+	kind, steps, err = transferLeaderStep(cluster, region, storeID, followerIDs)
+	if err != nil {
+		return
+	}
+	// then remove it
+	steps = append(steps, RemovePeer{FromStore: storeID})
+	kind |= OpRegion
+	return
+}
+// transfer leader from store with storeID to other suitable store
+func transferLeaderStep(cluster Cluster, region *core.RegionInfo, storeID uint64, followerIDs []uint64) (kind OpKind, steps []OpStep, err error) {
+	if region.GetLeader() != nil && region.GetLeader().GetStoreId() == storeID {
+		kind, steps, err = transferLeaderToSuitableSteps(cluster, storeID, followerIDs)
+		if err != nil {
+			log.Debug("failed to create transfer leader step", zap.Uint64("region-id", region.GetID()), zap.Error(err))
+			return
+		}
+	}
+	return
+}
+// transferLeaderToSuitableSteps returns the first suitable store to become region leader.
+// Returns an error if there is no suitable store.
+func transferLeaderToSuitableSteps(cluster Cluster, leaderID uint64, storeIDs []uint64) (OpKind, []OpStep, error) {
+	_, id := findAvailableStore(cluster, storeIDs)
+	if id != 0 {
+		return OpLeader, []OpStep{TransferLeader{FromStore: leaderID, ToStore: id}}, nil
+	}
+	return 0, nil, errors.New("no suitable store to become region leader")
+}
+// findAvailableStore finds the first available store.
+func findAvailableStore(cluster Cluster, storeIDs []uint64) (int, uint64) {
+	for i, id := range storeIDs {
+		store := cluster.GetStore(id)
+		if store != nil {
+			return i, id
+		} else {
+			log.Debug("nil store", zap.Uint64("store-id", id))
+		}
+	}
+	return -1, 0
+}
 
 // CreateOfflinePeerOperator creates an operator that replaces an old peer with a new peer when offline a store.
 func CreateOfflinePeerOperator(desc string, cluster Cluster, region *core.RegionInfo, kind OpKind, oldStore, newStore uint64, peerID uint64) (*Operator, error) {
@@ -387,48 +432,4 @@ func getRegionFollowerIDs(region *core.RegionInfo) []uint64 {
 	return ids
 }
 
-// removePeerSteps returns the steps to safely remove a peer. It prevents removing leader by transfer its leadership first.
-func removePeerSteps(cluster Cluster, region *core.RegionInfo, storeID uint64, followerIDs []uint64) (kind OpKind, steps []OpStep, err error) {
-	kind, steps, err = transferLeaderStep(cluster, region, storeID, followerIDs)
-	if err != nil {
-		return
-	}
 
-	steps = append(steps, RemovePeer{FromStore: storeID})
-	kind |= OpRegion
-	return
-}
-
-func transferLeaderStep(cluster Cluster, region *core.RegionInfo, storeID uint64, followerIDs []uint64) (kind OpKind, steps []OpStep, err error) {
-	if region.GetLeader() != nil && region.GetLeader().GetStoreId() == storeID {
-		kind, steps, err = transferLeaderToSuitableSteps(cluster, storeID, followerIDs)
-		if err != nil {
-			log.Debug("failed to create transfer leader step", zap.Uint64("region-id", region.GetID()), zap.Error(err))
-			return
-		}
-	}
-	return
-}
-
-// findAvailableStore finds the first available store.
-func findAvailableStore(cluster Cluster, storeIDs []uint64) (int, uint64) {
-	for i, id := range storeIDs {
-		store := cluster.GetStore(id)
-		if store != nil {
-			return i, id
-		} else {
-			log.Debug("nil store", zap.Uint64("store-id", id))
-		}
-	}
-	return -1, 0
-}
-
-// transferLeaderToSuitableSteps returns the first suitable store to become region leader.
-// Returns an error if there is no suitable store.
-func transferLeaderToSuitableSteps(cluster Cluster, leaderID uint64, storeIDs []uint64) (OpKind, []OpStep, error) {
-	_, id := findAvailableStore(cluster, storeIDs)
-	if id != 0 {
-		return OpLeader, []OpStep{TransferLeader{FromStore: leaderID, ToStore: id}}, nil
-	}
-	return 0, nil, errors.New("no suitable store to become region leader")
-}
