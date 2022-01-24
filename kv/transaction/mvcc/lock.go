@@ -65,6 +65,7 @@ func (lock *Lock) IsLockedFor(key []byte, txnStartTs uint64, resp interface{}) b
 	if txnStartTs == TsMax && bytes.Compare(key, lock.Primary) != 0 {
 		return false
 	}
+	// lock exist before txnStartTs
 	if lock.Ts <= txnStartTs {
 		err := &kvrpcpb.KeyError{Locked: lock.Info(key)}
 		respValue := reflect.ValueOf(resp)
